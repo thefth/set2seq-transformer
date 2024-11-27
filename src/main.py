@@ -2,7 +2,6 @@
 """
 Main script for training and evaluating models.
 """
-
 import os
 import numpy as np
 import pickle
@@ -21,6 +20,7 @@ def parse_args():
     parser.add_argument('--features', type=str, required=True, help="Path to the features file.")
     parser.add_argument('--model', type=str, default='Set2SeqTransformer', help="Model to use.")
     parser.add_argument('--input_dim', type=int, default=24, help="Input dimensionality.")
+    parser.add_argument('--num_classes', type=int, default=2, help="Number of classes.")
     parser.add_argument('--set_model_name', type=str, default='DeepSets', help="Set base model.")
     parser.add_argument('--sequence_model_name', type=str, default='Transformer', help="Sequence base model.")
     parser.add_argument('--positional_embedding', type=str, default='positional_encoding', help="Positional embedding type.")
@@ -161,6 +161,7 @@ if __name__ == "__main__":
     model, criterion, optimizer = helpers.get_model(
         model_name=args.model,  
         input_dim=args.input_dim,
+        num_classes=args.num_classes,
         device=device,
         lr=args.lr,
         task="swdf",
