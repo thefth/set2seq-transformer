@@ -4,7 +4,7 @@
 
 Predicting artistic success based on sequences of artworks.
 
-This dataset is formulated as a **Sequential Multiple-Instance Learning (SMIL)** problem, where each timestep corresponds to a **set of artworks** (unordered instances) created within the same period of an artist’s career, and the goal is to predict a **sequence-level ranking** representing the artist’s overall success.
+This dataset is formulated as a *Sequential Multiple-Instance Learning (SMIL)* problem, where each timestep corresponds to a set of artworks (unordered instances) created within the same period of an artist’s career, and the goal is to predict a sequence-level ranking representing the artist’s overall success.
 
 ## Data Format
 

@@ -10,7 +10,7 @@ This task focuses on predicting near-future wildfire danger levels based on spat
 
 ## Data Format
 
-The dataset contains sequences of fire-related observations over time, where each timestep represents a **set of spatial instances** (e.g., grid cells or regions) with corresponding features and temporal metadata.
+The dataset contains sequences of fire-related observations over time, where each timestep represents a set of spatial instances (e.g., grid cells or regions) with corresponding features and temporal metadata.
 
 See the `mesogeos_swdf.pkl` and `mesogeos_swdf_features.pkl` files for preprocessed sequence and feature data.
 
