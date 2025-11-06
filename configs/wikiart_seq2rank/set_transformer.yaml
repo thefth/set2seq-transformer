@@ -1,0 +1,33 @@
+# WikiArt-Seq2Rank Set2SeqTransformer Configuration
+# Artist career prediction with hierarchical set-to-sequence modeling
+
+# Dataset
+dataset: wikiart_seq2rank
+data_path: ../datasets/wikiart_seq2rank/wikiart_seq2rank.pkl
+features: ../datasets/wikiart_seq2rank/wikiart_seq2rank_features_resnet34.pkl
+wikiart_seq2rank_split: stratified_split  # Options: stratified_split, time_series_split
+wikiart_seq2rank_ranking: overall  # Options: overall, ebooks, etc.
+
+# Model Architecture
+model: SetTransformer_SAB_PMA
+
+# Set Encoder Hyperparameters
+set_dim_hidden: 256
+set_output_dim: 512
+
+# Embeddings
+positional_embedding: positional_encoding
+temporal_embedding: positional_embedding  # Year embeddings
+disable_temporal_embedding: false
+
+# Training Configuration
+lr: 0.00001
+batch_size: 256
+epochs: 100
+early_stopping_patience: 20
+monitor_metric: auto  # Will use kendall_tau for ranking
+scheduler: null
+
+# System
+seed: 42
+device: cuda

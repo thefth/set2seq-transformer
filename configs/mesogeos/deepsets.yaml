@@ -1,0 +1,28 @@
+# Mesogeos DeepSets Configuration
+# Wildfire forecasting with set-based modeling
+
+# Dataset
+dataset: mesogeos
+data_path: ../datasets/mesogeos/mesogeos_swdf.pkl
+features: ../datasets/mesogeos/mesogeos_swdf_features.pkl
+setting: 1
+
+# Model Architecture
+model: DeepSets
+
+# Set Encoder Hyperparameters
+set_dim_hidden: 256
+set_output_dim: 512
+set_pool: max
+
+# Training Configuration
+lr: 0.0001
+batch_size: 256
+epochs: 100
+early_stopping_patience: 20
+monitor_metric: auto
+scheduler: null
+
+# System
+seed: 42
+device: cuda

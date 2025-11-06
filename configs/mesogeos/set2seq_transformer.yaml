@@ -1,0 +1,41 @@
+# Mesogeos Set2SeqTransformer Configuration
+# Wildfire forecasting with hierarchical set-to-sequence modeling
+
+# Dataset
+dataset: mesogeos
+data_path: ../datasets/mesogeos/mesogeos_swdf.pkl
+features: ../datasets/mesogeos/mesogeos_swdf_features.pkl
+setting: 1  # Timestep grouping factor (1=no grouping, 2=pairs, etc.)
+
+# Model Architecture
+model: Set2SeqTransformer
+set_model_name: SetTransformer_ISAB_PMA  # Options: DeepSets, SetTransformer_SAB_PMA, SetTransformer_ISAB_PMA, SetTransformer_ISAB_PMA_SAB
+sequence_model_name: Transformer  # Options: Transformer, LSTM
+
+# Set Encoder Hyperparameters
+set_dim_hidden: 256
+set_output_dim: 512
+set_pool: max  # For DeepSets only
+
+# Sequence Encoder Hyperparameters
+sequence_model_dim: 512
+sequence_num_heads: 8
+sequence_num_layers: 6
+sequence_dropout: 0.0
+
+# Embeddings
+positional_embedding: positional_encoding  # Options: positional_encoding, positional_embedding, none
+temporal_embedding: timestamp_time2vec  # Options: timestamp_time2vec, positional_embedding, none
+disable_temporal_embedding: false
+
+# Training Configuration
+lr: 0.0001
+batch_size: 256
+epochs: 100
+early_stopping_patience: 20
+monitor_metric: auto  # Options: auto, loss, accuracy, kendall_tau
+scheduler: null  # Options: null, cosine, step, plateau
+
+# System
+seed: 42
+device: cuda

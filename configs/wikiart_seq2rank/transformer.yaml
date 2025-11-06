@@ -1,0 +1,35 @@
+# WikiArt-Seq2Rank Transformer Configuration
+# Artist career prediction with sequence modeling
+
+# Dataset
+dataset: wikiart_seq2rank
+data_path: ../datasets/wikiart_seq2rank/wikiart_seq2rank.pkl
+features: ../datasets/wikiart_seq2rank/wikiart_seq2rank_features_resnet34.pkl
+wikiart_seq2rank_split: stratified_split
+wikiart_seq2rank_ranking: overall
+
+# Model Architecture
+model: Transformer
+
+# Sequence Encoder Hyperparameters
+sequence_model_dim: 512
+sequence_num_heads: 8
+sequence_num_layers: 6
+sequence_dropout: 0.0
+
+# Embeddings
+positional_embedding: positional_encoding
+temporal_embedding: positional_embedding
+disable_temporal_embedding: false
+
+# Training Configuration
+lr: 0.00001
+batch_size: 256
+epochs: 100
+early_stopping_patience: 20
+monitor_metric: auto
+scheduler: null
+
+# System
+seed: 42
+device: cuda
