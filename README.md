@@ -26,23 +26,6 @@ The model combines permutation-invariant set encoders (DeepSets or SetTransforme
 
 ---
 
-## Installation
-
-```bash
-# Clone repository
-git clone https://github.com/thefth/set2seq-transformer.git
-cd set2seq-transformer
-
-# (Optional) create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
----
-
 ## Datasets
 
 ### 1. WikiArt-Seq2Rank  

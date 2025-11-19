@@ -78,9 +78,9 @@ def parse_args():
     # Sequence encoder hyperparameters
     parser.add_argument('--sequence_model_dim', type=int, default=512,
                        help="Model dimension for sequence encoder")
-    parser.add_argument('--sequence_num_heads', type=int, default=8,
+    parser.add_argument('--sequence_num_heads', type=int, default=32,
                        help="Number of attention heads for Transformer")
-    parser.add_argument('--sequence_num_layers', type=int, default=6,
+    parser.add_argument('--sequence_num_layers', type=int, default=12,
                        help="Number of layers for sequence encoder")
     parser.add_argument('--sequence_dropout', type=float, default=0.0,
                        help="Dropout rate for sequence encoder")
@@ -99,10 +99,12 @@ def parse_args():
     parser.add_argument('--sequence_model_name', type=str, default='Transformer',
                        choices=['Transformer', 'LSTM'],
                        help="Sequence encoder for Set2SeqTransformer")
+    parser.add_argument('--variable_set_size', action=argparse.BooleanOptionalAction, default=True,
+                       help="Use variable set size")                   
     parser.add_argument('--positional_embedding', type=str, default='positional_encoding',
                        choices=['positional_encoding', 'positional_embedding', 'none'],
                        help="Type of positional embedding")
-    parser.add_argument('--temporal_embedding', type=str, default='timestamp_time2vec',
+    parser.add_argument('--temporal_embedding', type=str, default='positional_embedding',
                        choices=['timestamp_time2vec', 'positional_embedding', 'none'],
                        help="Type of temporal embedding")
     parser.add_argument('--disable_temporal_embedding', action='store_true',
@@ -144,9 +146,7 @@ def parse_args():
                        help="Device to use for training")
     
     # Output configuration
-    parser.add_argument('--save', action='store_true',
-                       help="Save the best model checkpoint")
-    parser.add_argument('--save_path', type=str, default='.',
+    parser.add_argument('--save_path', type=str, default=None,
                        help="Directory to save the model checkpoint")
     
     args = parser.parse_args()
@@ -206,13 +206,6 @@ def post_process_args(args):
         args.positional_embedding = None
     if args.temporal_embedding == 'none':
         args.temporal_embedding = None
-    
-    # Generate save path
-    if args.save:
-        filename = f"{args.model}_{args.dataset}_setting{args.setting}.pt"
-        args.save_path = os.path.join(args.save_path, filename)
-    else:
-        args.save_path = None
     
     return args
 
@@ -370,6 +363,41 @@ def main():
     print(f"Best model at epoch {best_epoch} with score: {best_score:.4f}")
     if args.save_path:
         print(f"Model saved to: {args.save_path}")
+    print(f"{'='*80}\n")
+    
+    # =========================================================================
+    # TEST SET EVALUATION - ADD THIS SECTION
+    # =========================================================================
+    
+    print(f"{'='*80}")
+    print(f"Evaluating best model on test set...")
+    print(f"{'='*80}\n")
+    
+    test_results = helpers.evaluate_model(
+        model=best_model,
+        dataloader=test_loader,
+        criterion=criterion,
+        model_name=args.model,
+        task=args.task,
+        device=device,
+        use_timestamp=args.use_timestamp,
+        disable_temporal_embedding=args.disable_temporal_embedding,
+    )
+    
+    print(f"\n{'='*80}")
+    print(f"Test Set Results:")
+    print(f"{'='*80}")
+    print(f"Loss: {test_results['loss']:.5f}")
+    
+    if args.task == 'swdf':
+        print(f"Precision: {test_results['precision']:.5f}")
+        print(f"Recall: {test_results['recall']:.5f}")
+        print(f"F1 Score: {test_results['f1_score']:.5f}")
+        print(f"PR-AUC: {test_results['pr_auc']:.5f}")
+    else:  # l2r task
+        print(f"MAE: {test_results['mae']:.5f}")
+        print(f"Kendall's Tau: {test_results['kendall_tau']:.5f}")
+    
     print(f"{'='*80}\n")
 
 

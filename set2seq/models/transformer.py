@@ -4,7 +4,6 @@ import torch.nn.functional as F
 import math
 
 
-
 def scaled_dot_product(q, k, v, mask=None):
     d_k = q.size()[-1]
     attn_logits = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(d_k)
@@ -62,12 +61,20 @@ class EncoderBlock(nn.Module):
         self.norm2 = nn.LayerNorm(input_dim)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, mask=None):
-        attn_out = self.self_attn(x, mask)
-        x = self.norm1(x + self.dropout(attn_out))
-        linear_out = self.linear_net(x)
-        x = self.norm2(x + self.dropout(linear_out))
-        return x
+    def forward(self, x, mask=None, return_attention=False):
+        # Self-attention with optional attention return
+        if return_attention:
+            attn_out, attention = self.self_attn(x, mask=mask, return_attention=True)
+            x = self.norm1(x + self.dropout(attn_out))
+            linear_out = self.linear_net(x)
+            x = self.norm2(x + self.dropout(linear_out))
+            return x, attention
+        else:
+            attn_out = self.self_attn(x, mask=mask)
+            x = self.norm1(x + self.dropout(attn_out))
+            linear_out = self.linear_net(x)
+            x = self.norm2(x + self.dropout(linear_out))
+            return x
 
 
 class TransformerEncoder(nn.Module):
@@ -75,10 +82,17 @@ class TransformerEncoder(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList([EncoderBlock(**block_args) for _ in range(num_layers)])
 
-    def forward(self, x, mask=None):
+    def forward(self, x, mask=None, return_attention=False):
+        attention_maps = [] if return_attention else None
+        
         for layer in self.layers:
-            x = layer(x, mask)
-        return x
+            if return_attention:
+                x, attn = layer(x, mask=mask, return_attention=True)
+                attention_maps.append(attn)
+            else:
+                x = layer(x, mask=mask)
+        
+        return (x, attention_maps) if return_attention else x
 
 
 class PositionalEmbedding(nn.Module):
@@ -99,7 +113,6 @@ class PositionalEmbedding(nn.Module):
         Args:
             indices: Tensor of indices (e.g., positional or chronological values).
         """
-
         return self.embedding(indices)
 
 
@@ -160,7 +173,6 @@ class TimestampTime2Vec(nn.Module):
         self.year_linear_weight = nn.Parameter(torch.randn(self.year_dim))  # Linear weight
         self.year_linear_bias = nn.Parameter(torch.randn(self.year_dim))  # Linear bias
         
-        
         # Parameters for year encoding
         self.year_ffn = nn.Sequential(
             nn.Linear(1, self.year_dim),
@@ -192,8 +204,6 @@ class TimestampTime2Vec(nn.Module):
         return timestamp_encoding
 
 
-
-
 class Transformer(nn.Module):
     def __init__(
         self,
@@ -223,7 +233,8 @@ class Transformer(nn.Module):
             num_layers (int): Number of Transformer encoder layers.
             dropout (float): Dropout rate applied to the model.
             positional_embedding_type (str): Type of positional embedding ('positional_encoding', 'positional_embedding', None).
-            temporal_embedding_type (str): Type of temporal embedding ('timestamp_time2vec', 'chronological_embedding', None).
+            temporal_embedding_type (str): Type of temporal embedding ('timestamp_time2vec', 'positional_embedding', None).
+            pooling_method (str): Pooling method ('mean', 'last', 'cls').
         """
         super().__init__()
         self.pooling_method = pooling_method
@@ -271,7 +282,7 @@ class Transformer(nn.Module):
             nn.Linear(model_dim, num_classes),
         )
 
-    def forward(self, x, positions=None, temporal_values=None, mask=None):
+    def forward(self, x, positions=None, temporal_values=None, mask=None, return_attention=False):
         """
         Forward pass through the Transformer.
 
@@ -280,11 +291,13 @@ class Transformer(nn.Module):
             positions (Tensor): Positional information for sequences.
             temporal_values (Tensor): Temporal information (e.g., years) for sequences.
             mask (Tensor): Optional attention mask of shape [Batch, SeqLen].
+            return_attention (bool): If True, return attention weights from all layers.
 
         Returns:
             Tensor: Output predictions of shape [Batch, num_classes].
+            (Optional) List[Tensor]: Attention weights if return_attention=True.
         """
-        x = self.input_net(x.float())  # Linear projection to model_dim
+        x = self.input_net(x.float())
 
         # Add positional embeddings
         if self.positional_embedding is not None and positions is not None:
@@ -297,74 +310,43 @@ class Transformer(nn.Module):
         # Add CLS token if using cls pooling
         if self.pooling_method == 'cls':
             batch_size = x.size(0)
-            # Expand learnable CLS token for batch
             cls_tokens = self.cls_token.expand(batch_size, -1, -1)
             x = torch.cat([cls_tokens, x], dim=1)
             
-            # Update mask to include CLS token (always valid)
             if mask is not None:
                 cls_mask = torch.ones(batch_size, 1, 1, 1, dtype=torch.bool, device=mask.device)
                 mask = torch.cat([cls_mask, mask], dim=-1)
                 
-        # Transformer Encoder
-        x = self.transformer(x, mask)
+        # Transformer Encoder with optional attention return
+        if return_attention:
+            x, attention_maps = self.transformer(x, mask, return_attention=True)
+        else:
+            x = self.transformer(x, mask)
         
         x = self.output_net(x)
-
-        # Output layer
-        # return x[:,-int(30/len(set(positions[0]))):].mean(dim=1)
-        # return x.mean(dim=1)
         
         # Pooling based on method
         if self.pooling_method == 'cls':
-            # Use CLS token (first position)
-            return x[:, 0]
+            output = x[:, 0]
         elif self.pooling_method == 'last':
-            # Use last non-padded position for each sample
             if mask is not None:
-                mask_squeezed = mask.squeeze(1).squeeze(1)  # [Batch, SeqLen]
-                seq_lengths = mask_squeezed.sum(dim=1) - 1  # Last valid index
+                mask_squeezed = mask.squeeze(1).squeeze(1)
+                seq_lengths = mask_squeezed.sum(dim=1) - 1
                 batch_indices = torch.arange(x.size(0), device=x.device)
-                return x[batch_indices, seq_lengths.long()]
+                output = x[batch_indices, seq_lengths.long()]
             else:
-                # No mask: use last position
-                return x[:, -1]
+                output = x[:, -1]
         elif self.pooling_method == 'mean':
-            # Masked mean pooling
             if mask is not None:
-                mask_squeezed = mask.squeeze(1).squeeze(1)  # [Batch, SeqLen]
+                mask_squeezed = mask.squeeze(1).squeeze(1)
                 mask_expanded = mask_squeezed.unsqueeze(-1).expand_as(x)
                 x_masked = x * mask_expanded.float()
                 x_sum = x_masked.sum(dim=1)
                 seq_lengths = mask_squeezed.sum(dim=1, keepdim=True)
-                return x_sum / seq_lengths.float()
+                output = x_sum / seq_lengths.float()
             else:
-                # No mask: regular mean
-                return x.mean(dim=1)
+                output = x.mean(dim=1)
         else:
-            raise ValueError(f"Unknown pooling_method: {self.pooling_method}. Use 'mean' or 'last'.")
-            return x.mean(dim=1)
-
-    @torch.no_grad()
-    def get_attention_maps(self, x, positions=None, temporal_values=None, mask=None):
-        """
-        Extract attention maps from the Transformer.
-
-        Args:
-            x (Tensor): Input features of shape [Batch, SeqLen, input_dim].
-            positions (Tensor): Positional information for sequences.
-            temporal_values (Tensor): Temporal information (e.g., years) for sequences.
-            mask (Tensor): Optional attention mask of shape [Batch, SeqLen].
-
-        Returns:
-            List[Tensor]: Attention maps for each Transformer layer.
-        """
-        x = self.input_net(x.float())
-
-        if self.positional_embedding is not None and positions is not None:
-            x = x + self.positional_embedding(positions)
-
-        if self.temporal_embedding is not None and temporal_values is not None:
-            x = x + self.temporal_embedding(temporal_values)
-
-        return self.transformer.get_attention_maps(x, mask=mask)
+            raise ValueError(f"Unknown pooling_method: {self.pooling_method}")
+        
+        return (output, attention_maps) if return_attention else output

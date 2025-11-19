@@ -45,12 +45,14 @@ class EarlyStopping:
         self.counter = 0
         self.early_stop = False
         self.best_score = None
+        self.best_epoch = None
         self.mode = "accuracy" if accuracy else "loss"
 
     def __call__(self, epoch, current_score, model, optimizer, lr_scheduler=None):
         if self.best_score is None:
             self.best_score = current_score
-            self.save_checkpoint(epoch, current_score, model, optimizer, lr_scheduler)
+            self.best_epoch = epoch
+            self.save_checkpoint(self.best_epoch, current_score, model, optimizer, lr_scheduler)
             if self.verbose:
                 print(f"Initial model saved with score = {current_score:.6f}.")
         else:
@@ -60,7 +62,8 @@ class EarlyStopping:
                 if self.verbose:
                     print(f"{self.mode.capitalize()} improved from {self.best_score:.6f} to {current_score:.6f}.")
                 self.best_score = current_score
-                self.save_checkpoint(epoch, current_score, model, optimizer, lr_scheduler)
+                self.best_epoch = epoch
+                self.save_checkpoint(self.best_epoch, current_score, model, optimizer, lr_scheduler)
                 self.counter = 0
             else:
                 self.counter += 1
@@ -70,6 +73,9 @@ class EarlyStopping:
 
     def save_checkpoint(self, epoch, current_score, model, optimizer, lr_scheduler=None):
         if self.path:
+            dirpath = os.path.dirname(self.path)
+            if dirpath:
+                os.makedirs(dirpath, exist_ok=True)
             if self.verbose:
                 print(f'Saving model: {self.mode.capitalize()} improved to {current_score:.6f}.')
             

@@ -187,7 +187,8 @@ def get_model(args, device=torch.device("cpu")):
             positional_embedding_dim=args.positional_embedding_dim,
             temporal_embedding_dim=args.temporal_embedding_dim,    
             min_year=args.min_year,                                
-            max_year=args.max_year                                 
+            max_year=args.max_year,
+            variable_set_size=args.variable_set_size
         )
     else:
         raise ValueError(f"Unknown model: '{model_name}'")
@@ -256,18 +257,21 @@ def train_model(
     since = datetime.now()
     best_model_wts = copy.deepcopy(model.state_dict())
     best_score = 0.0 if monitor_metric != "loss" else float('inf')
+    best_epoch = 0
     
-    # Initialize early stopping
-    monitor_accuracy = (monitor_metric != "loss")
-    early_stopping = utils.EarlyStopping(
-        path=save_path,
-        accuracy=monitor_accuracy,
-        patience=early_stopping_patience,
-        verbose=True
-    )
+    # Initialize early stopping only if patience is provided
+    early_stopping = None
+    if early_stopping_patience is not None:
+        monitor_accuracy = (monitor_metric != "loss")
+        early_stopping = utils.EarlyStopping(
+            path=save_path,
+            accuracy=monitor_accuracy,
+            patience=early_stopping_patience,
+            verbose=True
+        )
 
-    for epoch in range(epochs):
-        print(f'[{datetime.now().strftime("%d/%m/%Y %H:%M:%S")}] Epoch {epoch}/{epochs - 1}')
+    for epoch in range(1, epochs+1):
+        print(f'[{datetime.now().strftime("%d/%m/%Y %H:%M:%S")}] Epoch {epoch}/{epochs}')
         print('-' * 10)
 
         # Each epoch has training and validation phases
@@ -300,8 +304,10 @@ def train_model(
                 if isinstance(inputs, torch.Tensor):
                     inputs = inputs.to(device)
                 elif isinstance(inputs, list):
-                    # For Set2SeqTransformer with variable-size sets
-                    pass  # inputs stay as list
+                    # For Set2SeqTransformer with variable-size sets 
+                    inputs = [[[t.to(device) for t in instance_list] for instance_list in sample]
+                              for sample in inputs
+                             ]
                 
                 # Handle labels
                 if isinstance(labels, torch.Tensor):
@@ -446,33 +452,35 @@ def train_model(
                       f'Kendall\'s Tau: {metrics["kendall_tau"]:.5f} ')
                 current_metric = metrics["kendall_tau"] if monitor_metric == "kendall_tau" else epoch_loss
 
-            # Early stopping (only on validation set)
             if phase == 'val':
                 if scheduler:
                     scheduler.step(current_metric)
                 
-                early_stopping(
-                    epoch=epoch,
-                    current_score=current_metric,
-                    model=model,
-                    optimizer=optimizer,
-                    lr_scheduler=scheduler
-                )
-                
-                if early_stopping.early_stop:
-                    print(f"[{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}] Early stopping")
-                    time_elapsed = datetime.now() - since
-                    print(f'[{datetime.now().strftime("%d/%m/%Y %H:%M:%S")}] '
-                          f'Training complete in {time_elapsed.seconds // 60}m {time_elapsed.seconds % 60}s')
-                    print(f'Best validation score: {early_stopping.best_score:.4f}')
-                    model.load_state_dict(best_model_wts)
-                    return model, early_stopping.best_score, epoch
+                # Early stopping (if patience was provided)
+                if early_stopping is not None:
+                    early_stopping(
+                        epoch=epoch,
+                        current_score=current_metric,
+                        model=model,
+                        optimizer=optimizer,
+                        lr_scheduler=scheduler
+                    )
+                    
+                    if early_stopping.early_stop:
+                        print(f"[{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}] Early stopping")
+                        time_elapsed = datetime.now() - since
+                        print(f'[{datetime.now().strftime("%d/%m/%Y %H:%M:%S")}] '
+                              f'Training complete in {time_elapsed.seconds // 60}m {time_elapsed.seconds % 60}s')
+                        print(f'Best validation score: {early_stopping.best_score:.4f}')
+                        model.load_state_dict(best_model_wts)
+                        return model, early_stopping.best_score, early_stopping.best_epoch
 
             # Update best model
             if phase == 'val':
                 is_better = (current_metric > best_score) if monitor_metric != "loss" else (current_metric < best_score)
                 if is_better:
                     best_score = current_metric
+                    best_epoch = epoch + 1
                     best_model_wts = copy.deepcopy(model.state_dict())
 
         print()
@@ -484,4 +492,182 @@ def train_model(
     print(f'Best validation score: {best_score:.4f}')
 
     model.load_state_dict(best_model_wts)
-    return model, best_score, epochs - 1
+    return model, best_score, best_epoch
+    
+ 
+# =============================================================================
+# Unified Testing Function
+# =============================================================================
+
+def evaluate_model(
+model,
+dataloader,
+criterion,
+model_name="Transformer",
+task="swdf",
+device=torch.device("cpu"),
+use_timestamp=True,
+disable_temporal_embedding=False,
+):
+    """
+    Evaluate a trained model on a dataset.
+
+    Args:
+        model (torch.nn.Module): Trained model to evaluate.
+        dataloader: DataLoader for the evaluation dataset.
+        criterion: Loss function.
+        model_name (str): Name of the model.
+        task (str): 'swdf' for classification, 'l2r' for ranking.
+        device (torch.device): Device for evaluation.
+        use_timestamp (bool): Whether to use temporal embeddings.
+        disable_temporal_embedding (bool): Disable temporal embeddings (for ablation).
+
+    Returns:
+        dict: Dictionary containing evaluation metrics.
+    """
+    model.eval()
+
+    running_loss = 0.0
+    all_outputs = []
+    all_targets = []
+    all_probabilities = []
+    dataset_size = 0
+
+    with torch.no_grad():
+        for batch_data in dataloader:
+            # Unpack batch (format depends on dataset/collate function)
+            inputs = batch_data[0]
+            labels = batch_data[1]
+            positions = batch_data[2] if len(batch_data) > 2 else None
+            temporal_values = batch_data[3] if len(batch_data) > 3 else None
+            mask = batch_data[5] if len(batch_data) > 5 else None
+            
+            if task == 'swdf':
+                burned_area = torch.tensor([np.log(i) for i in batch_data[4]]).to(device)
+
+            # Handle different input types
+            if isinstance(inputs, torch.Tensor):
+                inputs = inputs.to(device)
+            elif isinstance(inputs, list):
+                # For Set2SeqTransformer with variable-size sets 
+                inputs = [[[t.to(device) for t in instance_list] for instance_list in sample]
+                          for sample in inputs
+                         ]
+            
+            # Handle labels
+            if isinstance(labels, torch.Tensor):
+                labels = labels.to(device)
+            elif isinstance(labels, list):
+                labels = torch.tensor(labels).to(device)
+            else:
+                labels = torch.from_numpy(np.asarray(labels)).to(device)
+
+            # Prepare model inputs based on model type
+            if 'Set2Seq' in model_name:
+                if positions is not None:
+                    positions_tensor = torch.stack(positions).to(device) if isinstance(positions[0], torch.Tensor) else torch.tensor(positions).to(device)
+                else:
+                    positions_tensor = None
+                
+                if use_timestamp and temporal_values is not None and not disable_temporal_embedding:
+                    if isinstance(temporal_values[0], list):
+                        days, months, years = transform_batch_timestamps_to_tensors(temporal_values, device)
+                        temporal_tensor = (days, months, years)
+                    else:
+                        temporal_tensor = torch.stack(temporal_values).long().to(device) if isinstance(temporal_values[0], torch.Tensor) else torch.tensor(temporal_values).long().to(device)
+                else:
+                    temporal_tensor = None
+                    
+                if mask is not None:
+                    mask_tensor = mask.to(device).unsqueeze(1).unsqueeze(2)
+                else:
+                    mask_tensor = None
+                
+                outputs = model(inputs, positions_tensor, temporal_tensor, mask_tensor)
+                                    
+            elif model_name == 'Transformer':
+                positions_tensor = torch.tensor(positions).to(device) if positions is not None else None
+                
+                if use_timestamp and temporal_values is not None:
+                    if isinstance(temporal_values[0], list):
+                        days, months, years = transform_batch_timestamps_to_tensors(temporal_values, device)
+                        temporal_tensor = (days, months, years)
+                    else:
+                        temporal_tensor = torch.tensor(temporal_values).long().to(device)
+                else:
+                    temporal_tensor = None
+                
+                if mask is not None:
+                    mask_tensor = mask.to(device).unsqueeze(1).unsqueeze(2)
+                else:
+                    mask_tensor = None
+                
+                outputs = model(inputs, positions_tensor, temporal_tensor, mask_tensor)
+            
+            elif model_name == 'LSTM':
+                lengths = None
+                if mask is not None:
+                    mask_squeezed = mask.squeeze(1).squeeze(1) if len(mask.shape) > 2 else mask
+                    lengths = mask_squeezed.sum(dim=1).cpu()
+                
+                outputs = model(inputs, lengths)
+                
+            else:
+                outputs = model(inputs)
+
+            # Compute loss based on task
+            if task == 'swdf':
+                log_probs = F.log_softmax(outputs, dim=1)
+                loss = criterion(log_probs, labels)
+                loss = torch.mean(loss * burned_area)
+                probs = torch.exp(log_probs)
+                predictions = probs.argmax(dim=-1)
+                probabilities = probs[:,1]
+            else:
+                if labels.dim() == 1:
+                    labels = labels.unsqueeze(1).float()
+                loss = criterion(outputs, labels)
+            
+            # Statistics
+            batch_size = inputs.size(0) if isinstance(inputs, torch.Tensor) else len(inputs)
+            running_loss += loss.item() * batch_size
+            dataset_size += batch_size
+            
+            # Collect outputs and targets
+            if task == 'swdf':
+                all_outputs.extend(predictions.cpu().numpy())
+                all_targets.extend(labels.cpu().numpy())
+                all_probabilities.extend(probabilities.cpu().detach().numpy())
+            else:
+                if len(outputs.size()) == 0:
+                    all_outputs.extend(outputs.unsqueeze(0).cpu().detach().numpy())
+                elif outputs.shape[-1] != 1:
+                    all_outputs.extend(outputs.squeeze().cpu().detach().numpy())
+                else:
+                    all_outputs.extend(outputs.cpu().detach().numpy())
+                
+                target_vals = labels.squeeze().cpu().detach().numpy() if labels.dim() > 1 else labels.cpu().detach().numpy()
+                if target_vals.ndim == 0:
+                    all_targets.append(target_vals.item())
+                else:
+                    all_targets.extend(target_vals)
+
+    # Compute metrics
+    avg_loss = running_loss / dataset_size
+
+    # Flatten nested lists
+    if task == 'l2r':
+        all_outputs = [float(i) if not isinstance(i, (list, np.ndarray)) else float(i[0]) for i in all_outputs]
+        all_targets = [float(i) if not isinstance(i, (list, np.ndarray)) else float(i[0]) for i in all_targets]
+
+    # Compute task-specific metrics
+    results = {'loss': avg_loss}
+
+    if task == 'swdf':
+        metrics = compute_classification_metrics(all_targets, all_outputs, all_probabilities)
+        results.update(metrics)
+    else:
+        metrics = compute_ranking_metrics(all_targets, all_outputs)
+        results.update(metrics)
+
+    return results

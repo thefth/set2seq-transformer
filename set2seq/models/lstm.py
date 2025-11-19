@@ -45,12 +45,14 @@ class LSTM(nn.Module):
     Forward Input:
         x (torch.Tensor): Input tensor of shape `[BatchSize, SeqLen, InputDim]`.
         lengths (torch.Tensor, optional): Sequence lengths for each batch to handle variable-length inputs. Defaults to None.
+        return_attention (bool): If True, return attention weights. Defaults to False.
 
     Forward Output:
         torch.Tensor: Output tensor of shape `[BatchSize, OutputDim]`.
+        (Optional) torch.Tensor: Attention weights of shape `[BatchSize, SeqLen]` if return_attention=True.
 
     Methods:
-        forward(x, lengths): Computes the forward pass through the model.
+        forward(x, lengths, return_attention): Computes the forward pass through the model.
         init_hidden(batch_size): Initializes the hidden and cell states for the LSTM.
 
     Example Usage:
@@ -58,7 +60,12 @@ class LSTM(nn.Module):
         model = LSTM(input_dim=128, hidden_dim=64, num_layers=2, output_dim=10, device='cuda')
         x = torch.randn(32, 50, 128)  # Batch of 32 sequences, each of length 50, with 128 features
         lengths = torch.randint(10, 50, (32,))  # Variable sequence lengths
+        
+        # Without attention
         output = model(x, lengths)
+        
+        # With attention
+        output, attn_weights = model(x, lengths, return_attention=True)
         ```
     """
     def __init__(self, input_dim, hidden_dim, num_layers, output_dim=2, bidirectional=True, device='cuda'):
@@ -79,16 +86,18 @@ class LSTM(nn.Module):
         # Fully connected layer for output
         self.fc = nn.Linear(hidden_dim * 2, output_dim)
 
-    def forward(self, x, lengths=None):
+    def forward(self, x, lengths=None, return_attention=False):
         """
         Forward pass of the LSTM model.
 
         Args:
             x (torch.Tensor): Input tensor of shape `[BatchSize, SeqLen, InputDim]`.
             lengths (torch.Tensor, optional): Sequence lengths for variable-length inputs. Defaults to None.
+            return_attention (bool): If True, return attention weights. Defaults to False.
 
         Returns:
             torch.Tensor: Output tensor of shape `[BatchSize, OutputDim]`.
+            (Optional) torch.Tensor: Attention weights of shape `[BatchSize, SeqLen]` if return_attention=True.
         """
         batch_size = x.size(0)
 
@@ -116,6 +125,8 @@ class LSTM(nn.Module):
         # Fully connected layer
         out = self.fc(context)
 
+        if return_attention:
+            return out, attn_weights
         return out
 
     def init_hidden(self, batch_size):
