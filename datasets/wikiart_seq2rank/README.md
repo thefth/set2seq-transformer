@@ -67,10 +67,10 @@ python3 train_baselines.py \
 Please cite the following when using this dataset and model:
 
 ```bibtex
-@article{efthymiou2024set2seq,
-  title={Set2Seq Transformer: Temporal and Positional-Aware Set Representations for Sequential Multiple-Instance Learning},
+@article{efthymiou2026set2seq,
+  title={Set2Seq Transformer: Temporal and Position-Aware Set Representations for Sequential Multiple-Instance Learning},
   author={Efthymiou, Athanasios and Rudinac, Stevan and Kackovic, Monika and Wijnberg, Nachoem and Worring, Marcel},
   journal={arXiv preprint arXiv:2408.03404},
-  year={2024}
+  year={2026}
 }
 ```
