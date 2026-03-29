@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Official PyTorch implementation of  
-**"Set2Seq Transformer: Temporal and Positional-Aware Set Representations for Sequential Multiple-Instance Learning"**  
+**"Set2Seq Transformer: Temporal and Position-Aware Set Representations for Sequential Multiple-Instance Learning"**  
 *by Athanasios Efthymiou, Stevan Rudinac, Monika Kackovic, Nachoem Wijnberg, and Marcel Worring (University of Amsterdam)*
 
 ---
