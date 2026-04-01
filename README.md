@@ -8,6 +8,8 @@ Official PyTorch implementation of
 **"Set2Seq Transformer: Temporal and Position-Aware Set Representations for Sequential Multiple-Instance Learning"**  
 *by Athanasios Efthymiou, Stevan Rudinac, Monika Kackovic, Nachoem Wijnberg, and Marcel Worring (University of Amsterdam)*
 
+📄 **Paper**: [arXiv:2408.03404](https://arxiv.org/abs/2408.03404)
+
 ---
 
 ## Overview
@@ -23,6 +25,16 @@ The model combines permutation-invariant set encoders (DeepSets or SetTransforme
 <p align="center">
   <img src="assets/set2seq_transformer.png" alt="Set2Seq-Transformer Architecture" width="650"/>
 </p>
+
+---
+
+## 📄 Online Supplementary Material
+
+Extended supplementary material for the paper is available here:
+
+📑 **[Online Supplementary Material (PDF)](supplementary_material/set2seq_transformer_online_supplementary_material.pdf)**
+
+It includes additional implementation details, dataset documentation, extended experimental results, qualitative analysis, and ablation studies.
 
 ---
 
