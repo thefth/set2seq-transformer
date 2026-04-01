@@ -1,6 +1,6 @@
 # Online Supplementary Material
 
-This folder contains the extended online supplementary material for the paper:
+This folder contains the online supplementary material for the paper:
 
 **Set2Seq Transformer: Temporal and Position-Aware Set Representations for Sequential Multiple-Instance Learning**
 

@@ -9,7 +9,6 @@ Official PyTorch implementation of
 *by Athanasios Efthymiou, Stevan Rudinac, Monika Kackovic, Nachoem Wijnberg, and Marcel Worring (University of Amsterdam)*
 
 📄 **Paper**: [arXiv:2408.03404](https://arxiv.org/abs/2408.03404)
-
 ---
 
 ## Overview
@@ -30,7 +29,7 @@ The model combines permutation-invariant set encoders (DeepSets or SetTransforme
 
 ## 📄 Online Supplementary Material
 
-Extended supplementary material for the paper is available here:
+Online supplementary material for the paper is available here:
 
 📑 **[Online Supplementary Material (PDF)](supplementary_material/set2seq_transformer_online_supplementary_material.pdf)**
 
