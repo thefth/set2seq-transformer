@@ -27,16 +27,6 @@ The model combines permutation-invariant set encoders (DeepSets or SetTransforme
 
 ---
 
-## 📄 Online Supplementary Material
-
-Online supplementary material for the paper is available here:
-
-📑 **[Online Supplementary Material (PDF)](supplementary_material/set2seq_transformer_online_supplementary_material.pdf)**
-
-It includes additional implementation details, dataset documentation, extended experimental results, qualitative analysis, and ablation studies.
-
----
-
 ## Datasets
 
 ### 1. WikiArt-Seq2Rank  
